@@ -1,7 +1,7 @@
 {
  "metadata": {
   "name": "",
-  "signature": "sha256:60771c64adee7455ccb26559140e2be042f92e6fdd59593958fa08781f8875ee"
+  "signature": "sha256:957f23afa541be48c50d81f8e106f797fa2a2c025e1c69bb390219d8255e16a5"
  },
  "nbformat": 3,
  "nbformat_minor": 0,
@@ -24,7 +24,7 @@
      "language": "python",
      "metadata": {},
      "outputs": [],
-     "prompt_number": 69
+     "prompt_number": 6
     },
     {
      "cell_type": "code",
@@ -47,6 +47,7 @@
       "    x = [re.sub(r\"&#(\\S*?;)+\", \" \", question) for question in untokenized] # strips weird formatting characters (e.g. \"&#xd;&lt;br&gt;\")\n",
       "    x = [re.sub(r\"(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?\", \" URL \", question) for question in x] # map URLs to \"URL\"\n",
       "    x = [re.sub(r\"[12]\\d{3}\", \" YEAR \", question) for question in x]    # map years to \"YEAR\"\n",
+      "    x = [re.sub(r\"\\d+\", \" \", question) for question in x]\n",
       "    return x\n",
       "\n",
       "def bag_tokens(untokenized):\n",
@@ -185,18 +186,12 @@
      "language": "python",
      "metadata": {},
      "outputs": [],
-     "prompt_number": 71
+     "prompt_number": 27
     },
     {
      "cell_type": "code",
      "collapsed": false,
-     "input": [
-      "X, y = read_in_text(filepath, train_file)\n",
-      "m = mappings(X)\n",
-      "tokens = bag_tokens(m)\n",
-      "h = hypernyms(tokens)\n",
-      "print h"
-     ],
+     "input": [],
      "language": "python",
      "metadata": {},
      "outputs": []
@@ -233,14 +228,16 @@
      "input": [
       "\n",
       "\n",
-      "def category_word_frequencies(filepath, filename):\n",
-      "    X, y = read_in_text(filepath, filename)\n",
+      "def category_word_frequencies(X, y):\n",
       "    category_dic = categories(X, y)\n",
       "    freq = []\n",
       "    combo = []\n",
       "    unique = {}\n",
       "    for key, value in category_dic.iteritems():\n",
-      "        dist = nltk.FreqDist(bag_tokens(value))\n",
+      "        tokens = []\n",
+      "        for b in bag_tokens(mappings(value)):\n",
+      "            tokens.extend(b)\n",
+      "        dist = nltk.FreqDist(tokens)\n",
       "        freq.append((key, dist.keys()[:100]))\n",
       "        combo.extend(dist.keys()[:100])\n",
       "    combo_dist = nltk.FreqDist(combo)\n",
@@ -266,23 +263,74 @@
       "                index += 1\n",
       "        features.append(vector)\n",
       "    return features\n",
-      "\n"
+      "\n",
+      "def count_mappings(bag_tokens, map_list):\n",
+      "    features = []\n",
+      "    for question in bag_tokens:\n",
+      "        vector = [1,1]\n",
+      "        for word in question:\n",
+      "            index = 0\n",
+      "            for m in map_list:\n",
+      "                if word == m:\n",
+      "                    vector[index] += 1\n",
+      "                index += 1\n",
+      "        features.append(vector)\n",
+      "    return features\n"
      ],
      "language": "python",
      "metadata": {},
      "outputs": [],
-     "prompt_number": 24
+     "prompt_number": 29
     },
     {
      "cell_type": "code",
      "collapsed": false,
      "input": [
-      "combo = [count[i]+vector[i] for i in range(len(count))]\n",
-      "print combo[:5]"
+      "X, y = read_in_text(filepath, train_file)\n",
+      "m = mappings(X)\n",
+      "bag = bag_tokens(m)\n",
+      "category_word_frequencies(X, y)\n",
+      "#count_mappings(bag, [\"year\", \"url\"])\n"
      ],
      "language": "python",
      "metadata": {},
      "outputs": []
+    },
+    {
+     "cell_type": "code",
+     "collapsed": false,
+     "input": [
+      "def algorithm2(filepath, filename):\n",
+      "    X, y = read_in_text(filepath, filename)\n",
+      "    m = mappings(X)\n",
+      "    tokens = bag_tokens(m)\n",
+      "    pos_features = extract(filepath, filename)    # count of nouns, verbs, adjectives\n",
+      "    unique_dic = category_word_frequencies(X, y)\n",
+      "    uniques_features = count_uniques(tokens, unique_dic)    # count of a dictionary of unique terms for each category\n",
+      "    map_features = count_mappings(tokens, [\"year\", \"url\"])    # count of urls and dates\n",
+      "    combo_features = [pos_features[i] + uniques_features[i] + map_features[i] for i in range(len(y))]\n",
+      "    return combo_features\n",
+      "\n",
+      "#combo = algorithm2(filepath, train_file)\n",
+      "#clf = svm.LinearSVC(C=1.0, class_weight=None, dual=True, fit_intercept=True,\n",
+      "#intercept_scaling=1, loss='l2', multi_class='ovr', penalty='l2',\n",
+      "#random_state=None, tol=0.0001, verbose=0) \n",
+      "X_train, X_test, y_train, y_test = cross_validation.train_test_split(combo, y, test_size=0.2, random_state=0)\n",
+      "clf.fit(X_train, y_train)\n",
+      "print clf.score(X_test, y_test) "
+     ],
+     "language": "python",
+     "metadata": {},
+     "outputs": [
+      {
+       "output_type": "stream",
+       "stream": "stdout",
+       "text": [
+        "0.542592592593\n"
+       ]
+      }
+     ],
+     "prompt_number": 32
     },
     {
      "cell_type": "code",
